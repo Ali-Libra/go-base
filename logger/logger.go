@@ -1,34 +1,46 @@
 package logger
 
-import (
-	"fmt"
-)
-
 var log LogInterface
 
 /*
 file, "初始化一个文件日志实例"
 console, "初始化console日志实例"
 */
-func InitLogger(name string, config map[string]string) (err error) {
-	switch name {
-	case "file":
-		log, err = NewFileLogger(config)
-		if err != nil {
-			return err
-		}
-		log.Init()
-	case "console":
-		log, err = NewConsoleLogger(config)
-		if err != nil {
-			return err
-		}
-	default:
-		err = fmt.Errorf("unsupport logger name:%s", name)
+func InitLogger(config map[string]string) (err error) {
+	log, err = NewFileLogger(config)
+	if err != nil {
+		return err
 	}
+	log.Init()
 
 	return
 }
+
+func CloseLogger() {
+	if log != nil {
+		log.Close()
+	}
+}
+
+// func InitLogger(name string, config map[string]string) (err error) {
+// 	switch name {
+// 	case "file":
+// 		log, err = NewFileLogger(config)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		log.Init()
+// 	case "console":
+// 		log, err = NewConsoleLogger(config)
+// 		if err != nil {
+// 			return err
+// 		}
+// 	default:
+// 		err = fmt.Errorf("unsupport logger name:%s", name)
+// 	}
+
+// 	return
+// }
 
 func Debug(format string, args ...interface{}) {
 	log.Debug(format, args...)

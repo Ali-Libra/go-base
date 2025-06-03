@@ -3,6 +3,7 @@ package util
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net"
 	"os"
@@ -15,7 +16,7 @@ import (
 )
 
 func HandleSignalFinal(quitHandler func()) {
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 
 	<-c
@@ -25,7 +26,7 @@ func HandleSignalFinal(quitHandler func()) {
 func HandleSignal(quitHandler func(ctx context.Context), ctx context.Context) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 
 	go func() {
@@ -101,4 +102,23 @@ func VerifyEmailFormat(email string) bool {
 	pattern := `\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*` //匹配电子邮箱
 	reg := regexp.MustCompile(pattern)
 	return reg.MatchString(email)
+}
+
+func IsPortAvailable(port int) bool {
+	addr := fmt.Sprintf(":%d", port)
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		return false
+	}
+	defer l.Close()
+	return true
+}
+
+func FindAvailablePort(startPort int, endPort int) int {
+	for port := startPort; port < endPort; port++ {
+		if IsPortAvailable(port) {
+			return port
+		}
+	}
+	return 0
 }
