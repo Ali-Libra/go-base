@@ -24,8 +24,7 @@ func (c *TcpClient) Connect(ip string, port string) error {
 
 }
 
-func (c *TcpClient) SendMessage(msg string) {
-	data := []byte(msg)
+func (c *TcpClient) SendMessage(data []byte) {
 	length := uint32(len(data))
 	lenBuf := make([]byte, 4)
 	binary.BigEndian.PutUint32(lenBuf, length)

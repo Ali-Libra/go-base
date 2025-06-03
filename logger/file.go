@@ -15,10 +15,12 @@ type FileLogger struct {
 	logName       string
 	file          *os.File
 	warnFile      *os.File
-	LogDataChan   chan *LogData
 	logSplitType  int
 	logSplitSize  int64
 	lastSplitHour int
+
+	logDataChan chan *LogData
+	closeChan   chan struct{}
 }
 
 func NewFileLogger(config map[string]string) (log LogInterface, err error) {
@@ -78,10 +80,11 @@ func NewFileLogger(config map[string]string) (log LogInterface, err error) {
 		level:         level,
 		logPath:       logPath,
 		logName:       logName,
-		LogDataChan:   make(chan *LogData, chanSize),
 		logSplitSize:  logSplitSize,
 		logSplitType:  logSplitType,
 		lastSplitHour: time.Now().Hour(),
+		logDataChan:   make(chan *LogData, chanSize),
+		closeChan:     make(chan struct{}),
 	}
 
 	return
@@ -211,16 +214,19 @@ func (f *FileLogger) checkSplitFile(warnFile bool) {
 }
 
 func (f *FileLogger) writeLogBackground() {
-	for logData := range f.LogDataChan {
-		var file *os.File = f.file
-		if logData.WarnAndFatal {
-			file = f.warnFile
+	for {
+		select {
+		case logData := <-f.logDataChan:
+			var file *os.File = f.file
+			if logData.WarnAndFatal {
+				file = f.warnFile
+			}
+			f.checkSplitFile(logData.WarnAndFatal)
+			fmt.Fprintf(file, "%s %s (%s:%s:%d) %s\n", logData.TimeStr,
+				logData.LevelStr, logData.Filename, logData.FuncName, logData.LineNo, logData.Message)
+		case <-f.closeChan:
+			return
 		}
-
-		f.checkSplitFile(logData.WarnAndFatal)
-
-		fmt.Fprintf(file, "%s %s (%s:%s:%d) %s\n", logData.TimeStr,
-			logData.LevelStr, logData.Filename, logData.FuncName, logData.LineNo, logData.Message)
 	}
 }
 
@@ -238,7 +244,7 @@ func (f *FileLogger) Debug(format string, args ...interface{}) {
 
 	logData := writeLog(LogLevelDebug, format, args...)
 	select {
-	case f.LogDataChan <- logData:
+	case f.logDataChan <- logData:
 	default:
 	}
 }
@@ -249,7 +255,7 @@ func (f *FileLogger) Trace(format string, args ...interface{}) {
 	}
 	logData := writeLog(LogLevelTrace, format, args...)
 	select {
-	case f.LogDataChan <- logData:
+	case f.logDataChan <- logData:
 	default:
 	}
 }
@@ -260,7 +266,7 @@ func (f *FileLogger) Info(format string, args ...interface{}) {
 	}
 	logData := writeLog(LogLevelInfo, format, args...)
 	select {
-	case f.LogDataChan <- logData:
+	case f.logDataChan <- logData:
 	default:
 	}
 }
@@ -272,7 +278,7 @@ func (f *FileLogger) Warn(format string, args ...interface{}) {
 
 	logData := writeLog(LogLevelWarn, format, args...)
 	select {
-	case f.LogDataChan <- logData:
+	case f.logDataChan <- logData:
 	default:
 	}
 }
@@ -284,7 +290,7 @@ func (f *FileLogger) Error(format string, args ...interface{}) {
 
 	logData := writeLog(LogLevelError, format, args...)
 	select {
-	case f.LogDataChan <- logData:
+	case f.logDataChan <- logData:
 	default:
 	}
 }
@@ -296,7 +302,7 @@ func (f *FileLogger) Fatal(format string, args ...interface{}) {
 
 	logData := writeLog(LogLevelFatal, format, args...)
 	select {
-	case f.LogDataChan <- logData:
+	case f.logDataChan <- logData:
 	default:
 	}
 }
@@ -304,4 +310,5 @@ func (f *FileLogger) Fatal(format string, args ...interface{}) {
 func (f *FileLogger) Close() {
 	f.file.Close()
 	f.warnFile.Close()
+	f.closeChan <- struct{}{}
 }

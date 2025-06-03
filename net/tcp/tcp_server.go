@@ -10,13 +10,13 @@ import (
 type TcpServer struct {
 	port      string
 	onconnect func(conn net.Conn)
-	onmessage func(conn net.Conn, msg string)
+	onmessage func(conn net.Conn, msg []byte)
 	onclose   func(conn net.Conn)
 }
 
 func NewTcpServer(port string,
 	onconnect func(conn net.Conn),
-	onmessage func(conn net.Conn, msg string),
+	onmessage func(conn net.Conn, msg []byte),
 	onclose func(conn net.Conn)) *TcpServer {
 	return &TcpServer{
 		port:      port,
@@ -86,9 +86,8 @@ func (s *TcpServer) handleConn(conn net.Conn) {
 		}
 
 		// 4. 处理消息
-		fmt.Printf("Received message: %s\n", string(msgBuf))
 		if s.onmessage != nil {
-			s.onmessage(conn, string(msgBuf))
+			s.onmessage(conn, msgBuf)
 		}
 	}
 }
