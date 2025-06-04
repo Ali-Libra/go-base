@@ -8,15 +8,17 @@ import (
 )
 
 type HttpServer struct {
-	server  *http.Server
-	mux     *http.ServeMux
-	timeout time.Duration
+	server      *http.Server
+	mux         *http.ServeMux
+	timeout     time.Duration
+	middlewares []Middleware
 }
 
 func DefaultHttpServer() *HttpServer {
 	return &HttpServer{
-		mux:     http.NewServeMux(),
-		timeout: 5 * time.Second,
+		mux:         http.NewServeMux(),
+		timeout:     5 * time.Second,
+		middlewares: make([]Middleware, 0),
 	}
 }
 
@@ -28,8 +30,14 @@ func (s *HttpServer) Run(port string) {
 	s.server.ListenAndServe()
 }
 
+func (s *HttpServer) SetMiddleware(middleware ...Middleware) {
+	s.middlewares = append(s.middlewares, middleware...)
+}
+
 func (s *HttpServer) Handle(pattern string, handler http.HandlerFunc) {
-	s.mux.Handle(pattern, Chain(handler, LoggingMiddleware, TimeoutHandler(s.timeout)))
+	mws := append([]Middleware{LoggingMiddleware}, s.middlewares...)
+	mws = append(mws, TimeoutHandler(s.timeout))
+	s.mux.Handle(pattern, Chain(handler, mws...))
 }
 
 func (s *HttpServer) Close() {
