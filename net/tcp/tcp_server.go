@@ -70,6 +70,9 @@ func (s *TcpServer) OnLoop() {
 	for {
 		select {
 		case msg := <-s.recvChan: // 从接收通道读取数据
+			if _, ok := s.sendChans[msg.Conn]; !ok {
+				s.sendChans[msg.Conn] = make(chan []byte, 10240)
+			}
 			if s.onMessage != nil {
 				s.onMessage(msg.Conn, msg.Data) // 调用接收消息的回调函数
 			}
