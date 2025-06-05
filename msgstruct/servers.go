@@ -1,26 +1,36 @@
 package msgstruct
 
+type ServerType uint32
+
 const (
-	MsgTypeNone uint32 = iota + 1
+	ClientServer ServerType = iota + 1
+	PictureServer
+)
+
+type MsgType uint32
+
+const (
+	MsgTypeNone MsgType = iota + 1
 	MsgTypeGetPictureReq
 	MsgTypeGetPictureRsp
 )
 
 type MsgPack struct {
-	MsgType   uint32 `msgpack:"msg_type"`
-	SessionID uint32 `msgpack:"session_id"`
-	Data      []byte `msgpack:"data"`
+	MsgType   MsgType `msgpack:"msg_type"`
+	SessionID uint32  `msgpack:"session_id"`
+	Data      []byte  `msgpack:"data"`
 }
 
 type MsgRegister struct {
-	Name string `msgpack:"name"`
-	Key  string `msgpack:"key"`
+	ServerType ServerType `msgpack:"server_type"`
+	Name       string     `msgpack:"name"`
+	Key        string     `msgpack:"key"`
 }
 
-type MsgGetPictureReq struct {
-	SrcPicture []byte `msgpack:"src_picture"`
+type MsgTransferPictureReq struct {
+	SrcPicture []byte `msgpack:"src"`
 }
 
-type MsgGetPictureRsp struct {
-	TargetPicture []byte `msgpack:"target_picture"`
+type MsgTransferPictureRsp struct {
+	TargetPicture []byte `msgpack:"target"`
 }
