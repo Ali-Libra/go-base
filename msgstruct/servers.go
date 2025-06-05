@@ -3,7 +3,8 @@ package msgstruct
 type ServerType uint32
 
 const (
-	ClientServer ServerType = iota + 1
+	Client ServerType = iota + 1
+	ApiServer
 	PictureServer
 )
 
@@ -16,9 +17,10 @@ const (
 )
 
 type MsgPack struct {
-	MsgType   MsgType `msgpack:"msg_type"`
-	SessionID uint32  `msgpack:"session_id"`
-	Data      []byte  `msgpack:"data"`
+	MsgType        MsgType    `msgpack:"msg_type"`
+	DispatchServer ServerType `msgpack:"to_server"`
+	SessionID      uint32     `msgpack:"session_id"`
+	Data           []byte     `msgpack:"data"`
 }
 
 type MsgRegister struct {
