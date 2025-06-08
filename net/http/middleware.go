@@ -1,6 +1,7 @@
 package http
 
 import (
+	"encoding/json"
 	"go-base/logger"
 	"net/http"
 	"strings"
@@ -40,4 +41,18 @@ func AuthMiddleware(token string) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func WriteJson(w http.ResponseWriter, code int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+
+	json.NewEncoder(w).Encode(data)
+}
+
+func WriteSuccess(w http.ResponseWriter, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	json.NewEncoder(w).Encode(data)
 }

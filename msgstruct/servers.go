@@ -32,9 +32,11 @@ type MsgRegister struct {
 type MsgTransferPictureReq struct {
 	SrcPicture []byte `msgpack:"src"`
 	UserKey    string `msgpack:"key"`
+	ImgName    string `msgpack:"img_name"`
 }
 
 type MsgTransferPictureRsp struct {
 	TargetPicture []byte `msgpack:"target"`
 	UserKey       string `msgpack:"key"`
+	ImgName       string `msgpack:"img_name"`
 }
