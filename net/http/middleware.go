@@ -56,3 +56,8 @@ func WriteSuccess(w http.ResponseWriter, data interface{}) {
 
 	json.NewEncoder(w).Encode(data)
 }
+
+func WriteImg(w http.ResponseWriter, imgData []byte) {
+	w.Header().Set("Content-Type", "image/png")
+	w.Write(imgData)
+}
