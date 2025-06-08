@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+
+	"github.com/google/uuid"
 )
 
 func HandleSignalFinal(quitHandler func()) {
@@ -143,4 +145,8 @@ func LoadJsonFile(filename string) (map[string]interface{}, error) {
 	var data map[string]interface{}
 	err := loadJsonToStruct(filename, &data)
 	return data, err
+}
+
+func GenerateUUID() string {
+	return uuid.New().String()
 }
