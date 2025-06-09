@@ -2,7 +2,7 @@ package tcp
 
 import (
 	"encoding/binary"
-	"fmt"
+	"go-base/logger"
 	"net"
 	"sync"
 )
@@ -63,7 +63,7 @@ func (s *TcpServer) Server() {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			fmt.Println("Accept error:", err)
+			logger.Error("Accept connect error %v", err)
 			continue
 		}
 		go s.handleConn(conn)
@@ -137,6 +137,7 @@ func (s *TcpServer) handleConn(conn net.Conn) {
 		if readLenTotal < 4 {
 			n, err := conn.Read(readLenBuf[readLenTotal:]) // 读取长度前缀
 			if err != nil {
+				logger.Error("connect %d read msg  error %v", connId, err)
 				return // 读取失败，退出循环
 			}
 			readLenTotal += uint32(n)
@@ -148,6 +149,7 @@ func (s *TcpServer) handleConn(conn net.Conn) {
 		length := binary.BigEndian.Uint32(readLenBuf)
 		if readDataTotal == 0 {
 			if length == 0 || length > 10*1024*1024 {
+				logger.Error("connect %d read msg len error", connId)
 				return // 长度不合法，退出循环
 			}
 			readData = make([]byte, length) // 分配足够的空间来存储数据
@@ -155,6 +157,7 @@ func (s *TcpServer) handleConn(conn net.Conn) {
 		if readDataTotal < length {
 			n, err := conn.Read(readData[readDataTotal:]) // 读取实际数据
 			if err != nil {
+				logger.Error("connect %d read msg  error %v", connId, err)
 				return // 读取失败，退出循环
 			}
 			readDataTotal += uint32(n)
@@ -184,15 +187,18 @@ func (s *TcpServer) handleWrite() {
 		conn, ok := s.conns[msg.ConnId]
 		s.rwLock.RUnlock()
 		if !ok {
+			logger.Error("connect %d have  closed", msg.ConnId)
 			continue
 		}
 
 		_, err := conn.Write(lenBuf) // 发送长度前缀
 		if err != nil {
+			logger.Error("connect %d have  write error", msg.ConnId)
 			continue
 		}
 		_, err = conn.Write(msg.Data)
 		if err != nil {
+			logger.Error("connect %d have  write error", msg.ConnId)
 			continue
 		}
 	}
