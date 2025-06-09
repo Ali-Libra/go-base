@@ -8,6 +8,14 @@ const (
 	PictureServer
 )
 
+type ServerStatusType uint32
+
+const (
+	SERVERSTATUS_NONE ServerStatusType = iota + 1
+	SERVERSTATUS_OK
+	SERVERSTATUS_BUSY
+)
+
 type MsgType uint32
 
 const (
