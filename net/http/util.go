@@ -8,7 +8,6 @@ func WrapHandler(fn func(w *HttpResponse, r *HttpRequest)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		rsp := &HttpResponse{
 			ResponseWriter: w,
-			statusCode:     http.StatusOK,
 		}
 		req := &HttpRequest{
 			Request: r,

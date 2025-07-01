@@ -1,30 +1,20 @@
 package http
 
 import (
-	"bytes"
 	"encoding/json"
+	"go-base/logger"
 	"net/http"
 )
 
 type HttpResponse struct {
 	http.ResponseWriter
-	header     http.Header
-	body       bytes.Buffer
-	statusCode int
 }
 
-func (rsp *HttpResponse) Header() http.Header {
-	return rsp.header
+func (rsp *HttpResponse) RspError(txt string) {
+	logger.Error("HttpResponse Error: %s", txt)
+	http.Error(rsp, txt, 500)
 }
-
-func (rsp *HttpResponse) Write(data []byte) (int, error) {
-	return rsp.ResponseWriter.Write(data)
-}
-func (rsp *HttpResponse) WriteHeader(statusCode int) {
-	rsp.statusCode = statusCode
-	rsp.ResponseWriter.WriteHeader(statusCode)
-}
-func (rsp *HttpResponse) WriteJson(code int, data interface{}) {
+func (rsp *HttpResponse) RspJson(code int, data interface{}) {
 	rsp.Header().Set("Content-Type", "application/json")
 	rsp.WriteHeader(code)
 
