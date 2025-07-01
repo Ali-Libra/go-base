@@ -34,10 +34,10 @@ func (s *HttpServer) SetMiddleware(middleware ...Middleware) {
 	s.middlewares = append(s.middlewares, middleware...)
 }
 
-func (s *HttpServer) Handle(pattern string, handler http.HandlerFunc) {
+func (s *HttpServer) Handle(pattern string, handler HandlerFunc) {
 	mws := append([]Middleware{LoggingMiddleware}, s.middlewares...)
 	mws = append(mws, TimeoutHandler(s.timeout))
-	s.mux.Handle(pattern, Chain(handler, mws...))
+	s.mux.Handle(pattern, Chain(WrapHandler(handler), mws...))
 }
 
 func (s *HttpServer) Close() {
