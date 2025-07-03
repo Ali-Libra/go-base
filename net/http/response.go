@@ -12,7 +12,7 @@ type HttpResponse struct {
 
 func (rsp *HttpResponse) RspError(rspTxt string) {
 	logger.Error("HttpResponse Error: %s", rspTxt)
-	http.Error(rsp, rspTxt, 500)
+	panic(rspTxt)
 }
 func (rsp *HttpResponse) RspJson(data interface{}) {
 	rsp.Header().Set("Content-Type", "application/json")

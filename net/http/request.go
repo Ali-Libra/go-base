@@ -6,8 +6,8 @@ import (
 )
 
 type HttpRequest struct {
-	*http.Request // 组合原始请求
-	contexts      map[string]string
+	*http.Request
+	contexts map[string]string
 }
 
 func (req *HttpRequest) ReadBody() ([]byte, error) {
