@@ -10,9 +10,9 @@ type HttpResponse struct {
 	http.ResponseWriter
 }
 
-func (rsp *HttpResponse) RspError(txt string) {
-	logger.Error("HttpResponse Error: %s", txt)
-	http.Error(rsp, txt, 500)
+func (rsp *HttpResponse) RspError(rspTxt string) {
+	logger.Error("HttpResponse Error: %s", rspTxt)
+	http.Error(rsp, rspTxt, 500)
 }
 func (rsp *HttpResponse) RspJson(data interface{}) {
 	rsp.Header().Set("Content-Type", "application/json")

@@ -30,13 +30,32 @@ func (s *HttpServer) Run(port string) {
 	s.server.ListenAndServe()
 }
 
-func (s *HttpServer) SetMiddleware(middleware ...Middleware) {
-	s.middlewares = append(s.middlewares, middleware...)
+func (s *HttpServer) SetMiddleware(middlewares ...HandlerFunc) {
+	for i := len(middlewares) - 1; i >= 0; i-- {
+		middle := func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				WrapHandler(middlewares[i])(w, r)
+				next.ServeHTTP(w, r)
+			})
+		}
+
+		s.middlewares = append(s.middlewares, middle)
+	}
 }
 
-func (s *HttpServer) Handle(pattern string, handler HandlerFunc) {
+func (s *HttpServer) Handle(pattern string, handler HandlerFunc, middlewares ...HandlerFunc) {
 	mws := append([]Middleware{LoggingMiddleware}, s.middlewares...)
 	mws = append(mws, TimeoutHandler(s.timeout))
+	for i := len(middlewares) - 1; i >= 0; i-- {
+		middle := func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				WrapHandler(middlewares[i])(w, r)
+				next.ServeHTTP(w, r)
+			})
+		}
+
+		mws = append(mws, middle)
+	}
 	s.mux.Handle(pattern, Chain(WrapHandler(handler), mws...))
 }
 
