@@ -1,16 +1,10 @@
 package ws
 
-import (
-	"encoding/json"
-
-	"github.com/gorilla/websocket"
-)
-
 type WsConn struct {
-	*websocket.Conn
+	connId   uint64
+	sendChan chan *SendMessage
 }
 
-func (conn *WsConn) RspJson(reply interface{}) {
-	replyBytes, _ := json.Marshal(reply)
-	conn.WriteMessage(websocket.TextMessage, replyBytes)
+func (conn *WsConn) SendData(data []byte) {
+	conn.sendChan <- &SendMessage{ConnId: conn.connId, Data: data}
 }

@@ -43,6 +43,14 @@ func (s *HttpServer) Run(port string) {
 	s.server.ListenAndServe()
 }
 
+func (s *HttpServer) Close() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := s.server.Shutdown(ctx); err != nil {
+		logger.Error("Server forced to shutdown:", err)
+	}
+}
+
 func (s *HttpServer) SetMiddleware(middleHandler HandlerFunc) {
 	middleware := func(next HandlerFunc) HandlerFunc {
 		return func(rsp *HttpResponse, req *HttpRequest) {
@@ -72,12 +80,4 @@ func (s *HttpServer) Handle(pattern string, handler HandlerFunc, middleHandlers 
 	}
 
 	s.mux.Handle(pattern, Chain(handler, mws...))
-}
-
-func (s *HttpServer) Close() {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := s.server.Shutdown(ctx); err != nil {
-		logger.Error("Server forced to shutdown:", err)
-	}
 }

@@ -59,7 +59,7 @@ func (c *TcpServer) SetOnClose(callback func(conn uint64)) {
 	c.onClose = callback
 }
 
-func (s *TcpServer) Server() {
+func (s *TcpServer) Run() {
 	listener, err := net.Listen("tcp", s.port)
 	if err != nil {
 		panic(err)
@@ -103,12 +103,11 @@ func (s *TcpServer) OnLoop() {
 }
 
 func (s *TcpServer) Close() {
-	//先关闭接受通道，不再接收客户端消息
-	s.closeRead <- struct{}{}
+	s.closeWrite <- struct{}{}
 
 	for {
 		if len(s.sendChan) == 0 {
-			s.closeWrite <- struct{}{}
+			s.closeRead <- struct{}{}
 			for connId, conn := range s.conns {
 				conn.Close()
 				delete(s.conns, connId)

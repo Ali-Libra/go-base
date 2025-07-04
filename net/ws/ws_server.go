@@ -4,6 +4,7 @@ import (
 	"context"
 	"go-base/logger"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -23,36 +24,84 @@ type WsServer struct {
 	server *http.Server
 	mux    *http.ServeMux
 
+	rwLock     sync.RWMutex
 	IdCount    uint64
-	closeChan  chan uint64 // 用于关闭连接的通道
+	conns      map[uint64]*websocket.Conn
+	recvChan   chan *RecvMessage // 用于接收消息的通道
+	sendChan   chan *SendMessage // 用于发送消息的通道
+	closeChan  chan uint64       // 用于关闭连接的通道
 	closeRead  chan struct{}
 	closeWrite chan struct{}
 
-	onConnect func(conn *WsConn)
-	onMessage func(conn *WsConn, msg []byte)
-	onClose   func(conn *WsConn)
+	onConnect func(conn uint64)
+	onMessage func(conn uint64, msg []byte)
+	onClose   func(conn uint64)
 }
 
 func NewWsServer() *WsServer {
 	return &WsServer{
 		mux:        http.NewServeMux(),
-		closeChan:  make(chan uint64), // 初始化关闭通道
+		conns:      make(map[uint64]*websocket.Conn),
+		recvChan:   make(chan *RecvMessage, 10240), // 初始化消息通道
+		sendChan:   make(chan *SendMessage, 10240), // 初始化发送通道映射
+		closeChan:  make(chan uint64),              // 初始化关闭通道
 		closeRead:  make(chan struct{}),
 		closeWrite: make(chan struct{}),
 		IdCount:    0,
 	}
 }
 
-func (s *WsServer) Server(port string) {
+func (s *WsServer) Run(port string) {
+	go s.handleWrite()
+
 	s.server = &http.Server{
 		Addr:    port,
 		Handler: s.mux,
 	}
 	s.mux.HandleFunc("/", s.wsHandler)
-	s.server.ListenAndServe()
+	go s.server.ListenAndServe()
+}
+
+func (s *WsServer) OnLoop() {
+	for {
+		select {
+		case msg := <-s.recvChan: // 从接收通道读取数据
+			if s.onMessage != nil {
+				s.onMessage(msg.ConnId, msg.Data) // 调用接收消息的回调函数
+			}
+			for {
+				select {
+				case msg = <-s.recvChan: // 继续读取接收通道中的数据
+					if s.onMessage != nil {
+						s.onMessage(msg.ConnId, msg.Data) // 调用接收消息的回调函数
+					}
+				default:
+					return
+				}
+			}
+		case conn := <-s.closeChan: // 监听关闭信号
+			if s.onClose != nil {
+				s.onClose(conn) // 调用连接关闭的回调函数
+			}
+		default:
+			return
+		}
+	}
 }
 
 func (s *WsServer) Close() {
+	s.closeWrite <- struct{}{}
+
+	// for {
+	// 	if len(s.sendChan) == 0 {
+	// 		s.closeRead <- struct{}{}
+	// 		for connId, conn := range s.conns {
+	// 			conn.Close()
+	// 			delete(s.conns, connId)
+	// 		}
+	// 	}
+	// }
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := s.server.Shutdown(ctx); err != nil {
@@ -60,15 +109,15 @@ func (s *WsServer) Close() {
 	}
 }
 
-func (c *WsServer) SetOnConnect(callback func(conn *WsConn)) {
+func (c *WsServer) SetOnConnect(callback func(conn uint64)) {
 	c.onConnect = callback
 }
 
-func (c *WsServer) SetOnMessage(callback func(conn *WsConn, msg []byte)) {
+func (c *WsServer) SetOnMessage(callback func(conn uint64, msg []byte)) {
 	c.onMessage = callback
 }
 
-func (c *WsServer) SetOnClose(callback func(conn *WsConn)) {
+func (c *WsServer) SetOnClose(callback func(conn uint64)) {
 	c.onClose = callback
 }
 
@@ -80,18 +129,29 @@ var upgrader = websocket.Upgrader{
 }
 
 func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
-	// 升级连接
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		logger.Error("websocket启动失败: %v", err)
 		return
 	}
-	defer conn.Close()
 
+	var connId uint64
+	defer func() {
+		logger.Info("连接已断开: %v", conn.RemoteAddr())
+		conn.Close()
+		s.rwLock.Lock()
+		delete(s.conns, connId)
+		s.rwLock.Unlock()
+		s.closeChan <- connId
+	}()
 	logger.Info("客户端已连接: %v", conn.RemoteAddr())
 
-	// 循环读取消息
-	wsConn := &WsConn{conn}
+	s.rwLock.Lock()
+	s.IdCount++
+	connId = s.IdCount
+	s.conns[connId] = conn
+	s.rwLock.Unlock()
+
 	for {
 		msgType, msg, err := conn.ReadMessage()
 		if err != nil {
@@ -111,9 +171,34 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		logger.Info("收到消息: %s", msg)
-		if s.onMessage != nil {
-			s.onMessage(wsConn, msg)
+		s.recvChan <- &RecvMessage{
+			ConnId: connId, // 将连接和消息数据封装到 ConnMessage 中
+			Data:   msg,
+		}
+	}
+}
+
+func (s *WsServer) handleWrite() {
+	for {
+		select {
+		case <-s.closeWrite:
+			return
+		default:
+			for msg := range s.sendChan { // 从发送通道读取数据
+				s.rwLock.RLock()
+				conn, ok := s.conns[msg.ConnId]
+				s.rwLock.RUnlock()
+				if !ok {
+					logger.Error("connect %d have  closed", msg.ConnId)
+					continue
+				}
+
+				err := conn.WriteJSON(msg.Data)
+				if err != nil {
+					logger.Error("connect %d have  write error", msg.ConnId)
+					continue
+				}
+			}
 		}
 	}
 }
