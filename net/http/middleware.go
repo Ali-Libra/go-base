@@ -83,6 +83,9 @@ func PrintWatchMiddleware() {
 		ticker := time.NewTicker(time.Second)
 		for range ticker.C {
 			count := counter.Swap(0) // 原子读取并重置为0
+			if count == 0 {
+				continue
+			}
 			logger.Info("每秒请求次数:%d 总请求次数:%d", count, counterAll.Load())
 		}
 	}()
