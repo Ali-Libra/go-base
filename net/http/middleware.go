@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"go-base/logger"
 	"net/http"
+	"sync/atomic"
 	"time"
 )
 
 type Middleware func(HandlerFunc) HandlerFunc
 
-func Chain(timeout time.Duration, f HandlerFunc, middlewares ...Middleware) http.Handler {
+func Chain(f HandlerFunc, middlewares ...Middleware) http.Handler {
 	for _, m := range middlewares {
 		f = m(f)
 	}
@@ -67,4 +68,22 @@ func Chain(timeout time.Duration, f HandlerFunc, middlewares ...Middleware) http
 
 func LoggingMiddleware(rsp *HttpResponse, req *HttpRequest) {
 	logger.Debug("%s %s", req.Method, req.URL.Path)
+}
+
+var counter atomic.Int64
+var counterAll atomic.Int64
+
+func WatchMiddleware(rsp *HttpResponse, req *HttpRequest) {
+	counter.Add(1)
+	counterAll.Add(1)
+}
+
+func PrintWatchMiddleware() {
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		for range ticker.C {
+			count := counter.Swap(0) // 原子读取并重置为0
+			logger.Info("每秒请求次数:%d 总请求次数:%d", count, counterAll.Load())
+		}
+	}()
 }

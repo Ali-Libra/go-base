@@ -4,6 +4,8 @@ import (
 	"context"
 	"go-base/logger"
 	"net/http"
+	"reflect"
+	"runtime"
 	"time"
 )
 
@@ -44,6 +46,10 @@ func (s *HttpServer) SetMiddleware(middleHandler HandlerFunc) {
 			next(rsp, req)
 		}
 	}
+	fnName := runtime.FuncForPC(reflect.ValueOf(middleHandler).Pointer()).Name()
+	if fnName == "go-base/net/http.WatchMiddleware" {
+		PrintWatchMiddleware()
+	}
 	s.middlewares = append(s.middlewares, middleware)
 }
 
@@ -61,7 +67,7 @@ func (s *HttpServer) Handle(pattern string, handler HandlerFunc, middleHandlers 
 		mws = append(mws, middle)
 	}
 
-	s.mux.Handle(pattern, Chain(s.timeout, handler, mws...))
+	s.mux.Handle(pattern, Chain(handler, mws...))
 }
 
 func (s *HttpServer) Close() {
