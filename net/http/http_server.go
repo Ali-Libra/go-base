@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"go-base/logger"
+	"net"
 	"net/http"
 	"reflect"
 	"runtime"
@@ -19,7 +20,7 @@ type HttpServer struct {
 	middlewares []Middleware
 }
 
-func DefaultHttpServer() *HttpServer {
+func NewHttpServer() *HttpServer {
 	return &HttpServer{
 		mux:         http.NewServeMux(),
 		timeout:     5 * time.Second,
@@ -35,6 +36,9 @@ func (s *HttpServer) Run(port string) {
 		ReadTimeout:  s.timeout,
 		WriteTimeout: s.timeout,
 		IdleTimeout:  s.idleTimeout,
+		ConnState: func(conn net.Conn, state http.ConnState) {
+			logger.Info("conn %v state: %v", conn.RemoteAddr(), state)
+		},
 	}
 	s.server.ListenAndServe()
 }

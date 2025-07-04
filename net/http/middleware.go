@@ -26,41 +26,6 @@ func Chain(f HandlerFunc, middlewares ...Middleware) http.Handler {
 			}
 		}()
 		f(rsp, req)
-
-		{
-			// select {
-			// case <-ctx.Done():
-			// 	w.WriteHeader(http.StatusGatewayTimeout)
-			// 	w.Write([]byte("timeout"))
-			// case <-done:
-			// }
-
-			// rsp := &HttpResponse{ResponseWriter: w}
-			// ctx, cancel := context.WithTimeout(r.Context(), timeout) // 设置超时时间
-			// defer cancel()
-
-			// req := &HttpRequest{
-			// 	Request: r.WithContext(ctx),
-			// }
-
-			// done := make(chan struct{})
-			// go func() {
-			// 	defer func() {
-			// 		if err := recover(); err != nil {
-			// 			rsp.RspError(fmt.Sprintf("%v", err))
-			// 		}
-			// 		close(done)
-			// 	}()
-			// 	f(rsp, req)
-			// }()
-
-			// select {
-			// case <-ctx.Done():
-			// 	w.WriteHeader(http.StatusGatewayTimeout)
-			// 	w.Write([]byte("timeout"))
-			// case <-done:
-			// }
-		}
 	})
 
 	return fn
