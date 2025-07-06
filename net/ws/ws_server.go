@@ -155,7 +155,7 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 	s.rwLock.Unlock()
 
 	wsConn := &WsConn{
-		connId:   connId,
+		ConnId:   connId,
 		sendChan: s.sendChan,
 	}
 	for {
