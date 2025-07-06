@@ -11,8 +11,8 @@ import (
 )
 
 type RecvMessage struct {
-	ConnId uint64
-	Data   []byte
+	conn *WsConn
+	Data []byte
 }
 
 type SendMessage struct {
@@ -23,18 +23,19 @@ type SendMessage struct {
 type WsServer struct {
 	server *http.Server
 	mux    *http.ServeMux
+	limit  uint32
 
 	rwLock     sync.RWMutex
 	IdCount    uint64
 	conns      map[uint64]*websocket.Conn
-	recvChan   chan *RecvMessage // 用于接收消息的通道
-	sendChan   chan *SendMessage // 用于发送消息的通道
+	recvChan   chan *RecvMessage // 用于接收客户端消息的通道
+	sendChan   chan *SendMessage // 用于发送消息到客户端的通道
 	closeChan  chan uint64       // 用于关闭连接的通道
 	closeRead  chan struct{}
 	closeWrite chan struct{}
 
 	onConnect func(conn uint64)
-	onMessage func(conn uint64, msg []byte)
+	onMessage func(conn *WsConn, msg []byte)
 	onClose   func(conn uint64)
 }
 
@@ -51,14 +52,14 @@ func NewWsServer() *WsServer {
 	}
 }
 
-func (s *WsServer) Run(port string) {
+func (s *WsServer) Run(port string, path string) {
 	go s.handleWrite()
 
 	s.server = &http.Server{
 		Addr:    port,
 		Handler: s.mux,
 	}
-	s.mux.HandleFunc("/", s.wsHandler)
+	s.mux.HandleFunc("/"+path, s.wsHandler)
 	go s.server.ListenAndServe()
 }
 
@@ -67,13 +68,13 @@ func (s *WsServer) OnLoop() {
 		select {
 		case msg := <-s.recvChan: // 从接收通道读取数据
 			if s.onMessage != nil {
-				s.onMessage(msg.ConnId, msg.Data) // 调用接收消息的回调函数
+				s.onMessage(msg.conn, msg.Data) // 调用接收消息的回调函数
 			}
 			for {
 				select {
 				case msg = <-s.recvChan: // 继续读取接收通道中的数据
 					if s.onMessage != nil {
-						s.onMessage(msg.ConnId, msg.Data) // 调用接收消息的回调函数
+						s.onMessage(msg.conn, msg.Data) // 调用接收消息的回调函数
 					}
 				default:
 					return
@@ -92,20 +93,21 @@ func (s *WsServer) OnLoop() {
 func (s *WsServer) Close() {
 	s.closeWrite <- struct{}{}
 
-	// for {
-	// 	if len(s.sendChan) == 0 {
-	// 		s.closeRead <- struct{}{}
-	// 		for connId, conn := range s.conns {
-	// 			conn.Close()
-	// 			delete(s.conns, connId)
-	// 		}
-	// 	}
-	// }
-
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := s.server.Shutdown(ctx); err != nil {
 		logger.Error("Server forced to shutdown:", err)
+	}
+
+	//todo 检查这样会不会有线程安全问题
+	for {
+		if len(s.sendChan) == 0 {
+			s.closeRead <- struct{}{}
+			for connId, conn := range s.conns {
+				conn.Close()
+				delete(s.conns, connId)
+			}
+		}
 	}
 }
 
@@ -113,7 +115,7 @@ func (c *WsServer) SetOnConnect(callback func(conn uint64)) {
 	c.onConnect = callback
 }
 
-func (c *WsServer) SetOnMessage(callback func(conn uint64, msg []byte)) {
+func (c *WsServer) SetOnMessage(callback func(conn *WsConn, msg []byte)) {
 	c.onMessage = callback
 }
 
@@ -152,6 +154,10 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 	s.conns[connId] = conn
 	s.rwLock.Unlock()
 
+	wsConn := &WsConn{
+		connId:   connId,
+		sendChan: s.sendChan,
+	}
 	for {
 		msgType, msg, err := conn.ReadMessage()
 		if err != nil {
@@ -172,8 +178,8 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		s.recvChan <- &RecvMessage{
-			ConnId: connId, // 将连接和消息数据封装到 ConnMessage 中
-			Data:   msg,
+			conn: wsConn, // 将连接和消息数据封装到 ConnMessage 中
+			Data: msg,
 		}
 	}
 }

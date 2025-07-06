@@ -38,7 +38,7 @@ func (mgr *RedisMgr) Init(addr string) bool {
 	ctx := context.Background()
 	_, err := rdb.Ping(ctx).Result()
 	if err != nil {
-		logger.Error("❌ Redis 连接失败:", err)
+		logger.Error("❌ Redis 连接失败: %v", err)
 		return false
 	}
 
