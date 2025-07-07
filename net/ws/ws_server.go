@@ -91,7 +91,7 @@ func (s *WsServer) OnLoop() {
 }
 
 func (s *WsServer) Close() {
-	s.closeWrite <- struct{}{}
+	close(s.sendChan)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -99,15 +99,8 @@ func (s *WsServer) Close() {
 		logger.Error("Server forced to shutdown:", err)
 	}
 
-	//todo 检查这样会不会有线程安全问题
-	for {
-		if len(s.sendChan) == 0 {
-			s.closeRead <- struct{}{}
-			for connId, conn := range s.conns {
-				conn.Close()
-				delete(s.conns, connId)
-			}
-		}
+	for _, conn := range s.conns {
+		conn.Close()
 	}
 }
 
@@ -169,7 +162,7 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 			} else {
 				logger.Error("读取消息失败: %v", err)
 			}
-			break
+			return
 		}
 
 		if msgType != websocket.TextMessage {
@@ -185,26 +178,21 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *WsServer) handleWrite() {
-	for {
-		select {
-		case <-s.closeWrite:
-			return
-		default:
-			for msg := range s.sendChan { // 从发送通道读取数据
-				s.rwLock.RLock()
-				conn, ok := s.conns[msg.ConnId]
-				s.rwLock.RUnlock()
-				if !ok {
-					logger.Error("connect %d have  closed", msg.ConnId)
-					continue
-				}
+	logger.Info("Start handleWrite")
+	for msg := range s.sendChan { // 从发送通道读取数据
+		s.rwLock.RLock()
+		conn, ok := s.conns[msg.ConnId]
+		s.rwLock.RUnlock()
+		if !ok {
+			logger.Error("connect %d have  closed", msg.ConnId)
+			continue
+		}
 
-				err := conn.WriteJSON(msg.Data)
-				if err != nil {
-					logger.Error("connect %d have  write error", msg.ConnId)
-					continue
-				}
-			}
+		err := conn.WriteJSON(msg.Data)
+		if err != nil {
+			logger.Error("connect %d have  write error", msg.ConnId)
+			continue
 		}
 	}
+	logger.Info("End handleWrite")
 }

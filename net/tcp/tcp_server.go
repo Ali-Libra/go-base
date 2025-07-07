@@ -64,8 +64,8 @@ func (s *TcpServer) Run() {
 	if err != nil {
 		panic(err)
 	}
-	go s.handleWrite()
 	for {
+		go s.handleWrite()
 		conn, err := listener.Accept()
 		if err != nil {
 			logger.Error("Accept connect error %v", err)
@@ -105,14 +105,8 @@ func (s *TcpServer) OnLoop() {
 func (s *TcpServer) Close() {
 	s.closeWrite <- struct{}{}
 
-	for {
-		if len(s.sendChan) == 0 {
-			s.closeRead <- struct{}{}
-			for connId, conn := range s.conns {
-				conn.Close()
-				delete(s.conns, connId)
-			}
-		}
+	for _, conn := range s.conns {
+		conn.Close()
 	}
 }
 
