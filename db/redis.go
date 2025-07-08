@@ -8,10 +8,6 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type RedisMgr struct {
-	client *redis.Client
-}
-
 var (
 	redisInstance *RedisMgr
 	redisOnce     sync.Once
@@ -24,8 +20,24 @@ func DefaultRedisMgr() *RedisMgr {
 	return redisInstance
 }
 
+var (
+	instance *RedisMgr
+	once     sync.Once
+)
+
+func DefaultPikaMgr() *RedisMgr {
+	once.Do(func() {
+		instance = &RedisMgr{}
+	})
+	return instance
+}
+
 func NewRedisMgr() *RedisMgr {
 	return &RedisMgr{}
+}
+
+type RedisMgr struct {
+	client *redis.Client
 }
 
 func (mgr *RedisMgr) Init(addr string) bool {

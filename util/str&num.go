@@ -65,3 +65,10 @@ func LoadJsonFile(filename string) (map[string]interface{}, error) {
 	err := loadJsonToStruct(filename, &data)
 	return data, err
 }
+
+func GenUniqueID(timestampMs int64, val int) int64 {
+	if val >= 65536 || val < 0 {
+		panic("val must be between 0 and 9999")
+	}
+	return (timestampMs << 16) | int64(val)
+}
