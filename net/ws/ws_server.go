@@ -11,13 +11,15 @@ import (
 )
 
 type RecvMessage struct {
-	conn *WsConn
-	Data []byte
+	conn    *WsConn
+	MsgType int
+	Data    []byte
 }
 
 type SendMessage struct {
-	ConnId uint64
-	Data   []byte
+	ConnId  uint64
+	MsgType int
+	Data    []byte
 }
 
 type WsServer struct {
@@ -25,14 +27,12 @@ type WsServer struct {
 	mux    *http.ServeMux
 	limit  uint32
 
-	rwLock     sync.RWMutex
-	IdCount    uint64
-	conns      map[uint64]*websocket.Conn
-	recvChan   chan *RecvMessage // 用于接收客户端消息的通道
-	sendChan   chan *SendMessage // 用于发送消息到客户端的通道
-	closeChan  chan uint64       // 用于关闭连接的通道
-	closeRead  chan struct{}
-	closeWrite chan struct{}
+	rwLock    sync.RWMutex
+	IdCount   uint64
+	conns     map[uint64]*websocket.Conn
+	recvChan  chan *RecvMessage // 用于接收客户端消息的通道
+	sendChan  chan *SendMessage // 用于发送消息到客户端的通道
+	closeChan chan uint64       // 用于关闭连接的通道
 
 	onConnect func(conn uint64)
 	onMessage func(conn *WsConn, msg []byte)
@@ -41,14 +41,12 @@ type WsServer struct {
 
 func NewWsServer() *WsServer {
 	return &WsServer{
-		mux:        http.NewServeMux(),
-		conns:      make(map[uint64]*websocket.Conn),
-		recvChan:   make(chan *RecvMessage, 10240), // 初始化消息通道
-		sendChan:   make(chan *SendMessage, 10240), // 初始化发送通道映射
-		closeChan:  make(chan uint64),              // 初始化关闭通道
-		closeRead:  make(chan struct{}),
-		closeWrite: make(chan struct{}),
-		IdCount:    0,
+		mux:       http.NewServeMux(),
+		conns:     make(map[uint64]*websocket.Conn),
+		recvChan:  make(chan *RecvMessage, 10240), // 初始化消息通道
+		sendChan:  make(chan *SendMessage, 10240), // 初始化发送通道映射
+		closeChan: make(chan uint64, 1024),        // 初始化关闭通道
+		IdCount:   0,
 	}
 }
 
@@ -165,20 +163,15 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if msgType != websocket.TextMessage {
-			logger.Error("不支持的消息类型:", msgType)
-			continue
-		}
-
 		s.recvChan <- &RecvMessage{
-			conn: wsConn, // 将连接和消息数据封装到 ConnMessage 中
-			Data: msg,
+			conn:    wsConn, // 将连接和消息数据封装到 ConnMessage 中
+			MsgType: msgType,
+			Data:    msg,
 		}
 	}
 }
 
 func (s *WsServer) handleWrite() {
-	logger.Info("Start handleWrite")
 	for msg := range s.sendChan { // 从发送通道读取数据
 		s.rwLock.RLock()
 		conn, ok := s.conns[msg.ConnId]
@@ -188,11 +181,10 @@ func (s *WsServer) handleWrite() {
 			continue
 		}
 
-		err := conn.WriteJSON(msg.Data)
+		err := conn.WriteMessage(msg.MsgType, msg.Data)
 		if err != nil {
 			logger.Error("connect %d have  write error", msg.ConnId)
 			continue
 		}
 	}
-	logger.Info("End handleWrite")
 }
