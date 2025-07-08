@@ -2,7 +2,6 @@ package util
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -14,8 +13,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-
-	"github.com/google/uuid"
 )
 
 func HandleSignalFinal(quitHandler func()) {
@@ -125,31 +122,6 @@ func FindAvailablePort(startPort int, endPort int) int {
 	}
 	return 0
 }
-func loadJsonToStruct(filename string, v interface{}) error {
-	file, err := os.Open(filename)
-	if err != nil {
-		return fmt.Errorf("打开文件失败: %w", err)
-	}
-	defer file.Close()
-
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(v); err != nil {
-		return fmt.Errorf("解析JSON失败: %w", err)
-	}
-
-	return nil
-}
-
-// LoadJSONToMap 加载JSON文件到map
-func LoadJsonFile(filename string) (map[string]interface{}, error) {
-	var data map[string]interface{}
-	err := loadJsonToStruct(filename, &data)
-	return data, err
-}
-
-func GenerateUUID() string {
-	return uuid.New().String()
-}
 
 func SaveImage(data []byte, filename string) error {
 	// 创建并写入文件
@@ -166,14 +138,4 @@ func ReadImage(filename string) ([]byte, error) {
 		return nil, err
 	}
 	return data, nil
-}
-
-func SliceContains[T string | int | int64 | uint32 | uint64](
-	arr []T, target T) bool {
-	for _, s := range arr {
-		if s == target {
-			return true
-		}
-	}
-	return false
 }

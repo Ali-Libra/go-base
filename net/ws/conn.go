@@ -12,6 +12,10 @@ type WsConn struct {
 	sendChan chan *SendMessage
 }
 
+func (conn *WsConn) Close() {
+	logger.Info("conn close: %d", conn.ConnId)
+}
+
 func (conn *WsConn) SendData(data []byte) {
 	conn.sendChan <- &SendMessage{ConnId: conn.ConnId, Data: data}
 }
