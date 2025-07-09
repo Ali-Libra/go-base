@@ -4,6 +4,7 @@ import (
 	"context"
 	"go-base/logger"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -137,14 +138,13 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 	var connId uint64
 	remoteAddr := conn.RemoteAddr().String()
 	defer func() {
-		logger.Info("连接已断开: %v", remoteAddr)
+		logger.Info("连接已断开: %s", remoteAddr)
 		conn.Close()
 		s.rwLock.Lock()
 		delete(s.conns, connId)
 		s.rwLock.Unlock()
 		s.closeChan <- connId
 	}()
-	logger.Info("客户端已连接: %v", remoteAddr)
 
 	s.rwLock.Lock()
 	s.IdCount++
@@ -152,11 +152,21 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 	s.conns[connId] = conn
 	s.rwLock.Unlock()
 
+	logger.Info("客户端已连接: %d:%s", connId, remoteAddr)
+
 	wsConn := &WsConn{
 		ConnId:   connId,
+		conn:     conn,
 		Addr:     remoteAddr,
 		sendChan: s.sendChan,
 	}
+
+	token := r.Header.Get("Authorization")
+	if token != "" {
+		token = strings.TrimPrefix(token, "Bearer ")
+		wsConn.Token = token
+	}
+
 	s.connChan <- wsConn
 	for {
 		msgType, msg, err := conn.ReadMessage()

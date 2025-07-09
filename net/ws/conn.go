@@ -9,26 +9,30 @@ import (
 
 type WsConn struct {
 	ConnId   uint64
+	conn     *websocket.Conn
 	Addr     string
+	Token    string
 	sendChan chan *SendMessage
 }
 
-func (conn *WsConn) Close() {
-	logger.Info("conn close: %d", conn.ConnId)
+func (ws *WsConn) Close() {
+	if ws.conn != nil {
+		ws.conn.Close()
+	}
 }
 
-func (conn *WsConn) SendData(data []byte) {
-	conn.sendChan <- &SendMessage{ConnId: conn.ConnId, Data: data}
+func (ws *WsConn) SendData(data []byte) {
+	ws.sendChan <- &SendMessage{ConnId: ws.ConnId, Data: data}
 }
 
-func (conn *WsConn) SendJson(data interface{}) {
+func (ws *WsConn) SendJson(data interface{}) {
 	sendData, err := json.Marshal(data)
 	if err != nil {
 		logger.Error("json.Marshal error")
 		return
 	}
-	conn.sendChan <- &SendMessage{
-		ConnId:  conn.ConnId,
+	ws.sendChan <- &SendMessage{
+		ConnId:  ws.ConnId,
 		MsgType: websocket.TextMessage,
 		Data:    sendData,
 	}
