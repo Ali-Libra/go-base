@@ -30,11 +30,12 @@ type WsServer struct {
 	rwLock    sync.RWMutex
 	IdCount   uint64
 	conns     map[uint64]*websocket.Conn
+	connChan  chan *WsConn
 	recvChan  chan *RecvMessage // 用于接收客户端消息的通道
-	sendChan  chan *SendMessage // 用于发送消息到客户端的通道
 	closeChan chan uint64       // 用于关闭连接的通道
+	sendChan  chan *SendMessage // 用于发送消息到客户端的通道
 
-	onConnect func(conn uint64)
+	onConnect func(conn *WsConn)
 	onMessage func(conn *WsConn, msg []byte)
 	onClose   func(conn uint64)
 }
@@ -43,9 +44,10 @@ func NewWsServer() *WsServer {
 	return &WsServer{
 		mux:       http.NewServeMux(),
 		conns:     make(map[uint64]*websocket.Conn),
+		connChan:  make(chan *WsConn, 1024),
 		recvChan:  make(chan *RecvMessage, 10240), // 初始化消息通道
-		sendChan:  make(chan *SendMessage, 10240), // 初始化发送通道映射
 		closeChan: make(chan uint64, 1024),        // 初始化关闭通道
+		sendChan:  make(chan *SendMessage, 10240), // 初始化发送通道映射
 		IdCount:   0,
 	}
 }
@@ -64,6 +66,10 @@ func (s *WsServer) Run(port string, path string) {
 func (s *WsServer) OnLoop() {
 	for {
 		select {
+		case conn := <-s.connChan:
+			if s.onConnect != nil {
+				s.onConnect(conn) // 调用连接建立成功的回调函数
+			}
 		case msg := <-s.recvChan: // 从接收通道读取数据
 			if s.onMessage != nil {
 				s.onMessage(msg.conn, msg.Data) // 调用接收消息的回调函数
@@ -102,7 +108,7 @@ func (s *WsServer) Close() {
 	}
 }
 
-func (c *WsServer) SetOnConnect(callback func(conn uint64)) {
+func (c *WsServer) SetOnConnect(callback func(conn *WsConn)) {
 	c.onConnect = callback
 }
 
@@ -129,15 +135,16 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var connId uint64
+	remoteAddr := conn.RemoteAddr().String()
 	defer func() {
-		logger.Info("连接已断开: %v", conn.RemoteAddr())
+		logger.Info("连接已断开: %v", remoteAddr)
 		conn.Close()
 		s.rwLock.Lock()
 		delete(s.conns, connId)
 		s.rwLock.Unlock()
 		s.closeChan <- connId
 	}()
-	logger.Info("客户端已连接: %v", conn.RemoteAddr())
+	logger.Info("客户端已连接: %v", remoteAddr)
 
 	s.rwLock.Lock()
 	s.IdCount++
@@ -147,8 +154,10 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 
 	wsConn := &WsConn{
 		ConnId:   connId,
+		Addr:     remoteAddr,
 		sendChan: s.sendChan,
 	}
+	s.connChan <- wsConn
 	for {
 		msgType, msg, err := conn.ReadMessage()
 		if err != nil {
@@ -156,7 +165,7 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 				websocket.CloseNoStatusReceived,
 				websocket.CloseNormalClosure,
 				websocket.CloseGoingAway) {
-				logger.Info("客户端断开: %v", conn.RemoteAddr())
+				logger.Info("客户端断开: %v", remoteAddr)
 			} else {
 				logger.Error("读取消息失败: %v", err)
 			}

@@ -9,6 +9,7 @@ import (
 
 type WsConn struct {
 	ConnId   uint64
+	Addr     string
 	sendChan chan *SendMessage
 }
 
