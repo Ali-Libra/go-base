@@ -1,63 +1,57 @@
 package http
 
 import (
-	"encoding/json"
+	"fmt"
 	"go-base/logger"
 	"net/http"
-	"strings"
+	"sync/atomic"
 	"time"
 )
 
-type Middleware func(http.Handler) http.Handler
+type Middleware func(HandlerFunc) HandlerFunc
 
-func Chain(f http.Handler, middlewares ...Middleware) http.Handler {
+func Chain(f HandlerFunc, middlewares ...Middleware) http.Handler {
 	for _, m := range middlewares {
 		f = m(f)
 	}
-	return f
-}
 
-func LoggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger.Debug("%s %s", r.Method, r.URL.Path)
-		next.ServeHTTP(w, r)
-	})
-}
+	fn := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rsp := &HttpResponse{ResponseWriter: w}
+		req := &HttpRequest{Request: r}
 
-func TimeoutHandler(duration time.Duration) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.TimeoutHandler(next, duration, "Request timed out\n")
-	}
-}
-
-func AuthMiddleware(token string) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			auth := r.Header.Get("Authorization")
-			if !strings.HasPrefix(auth, "Bearer ") || strings.TrimPrefix(auth, "Bearer ") != token {
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
-				return
+		defer func() {
+			if err := recover(); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(fmt.Sprintf("%v", err)))
 			}
-			next.ServeHTTP(w, r)
-		})
-	}
+		}()
+		f(rsp, req)
+	})
+
+	return fn
 }
 
-func WriteJson(w http.ResponseWriter, code int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-
-	json.NewEncoder(w).Encode(data)
+func LoggingMiddleware(rsp *HttpResponse, req *HttpRequest) {
+	logger.Debug("%s %s", req.Method, req.URL.Path)
 }
 
-func WriteSuccess(w http.ResponseWriter, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+var counter atomic.Int64
+var counterAll atomic.Int64
 
-	json.NewEncoder(w).Encode(data)
+func WatchMiddleware(rsp *HttpResponse, req *HttpRequest) {
+	counter.Add(1)
+	counterAll.Add(1)
 }
 
-func WriteImg(w http.ResponseWriter, imgData []byte) {
-	w.Header().Set("Content-Type", "image/png")
-	w.Write(imgData)
+func PrintWatchMiddleware() {
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		for range ticker.C {
+			count := counter.Swap(0) // 原子读取并重置为0
+			if count == 0 {
+				continue
+			}
+			logger.Info("每秒请求次数:%d 总请求次数:%d", count, counterAll.Load())
+		}
+	}()
 }

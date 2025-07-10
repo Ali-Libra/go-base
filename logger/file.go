@@ -204,7 +204,6 @@ func (f *FileLogger) splitFileSize(warnFile bool) {
 }
 
 func (f *FileLogger) checkSplitFile(warnFile bool) {
-
 	if f.logSplitType == LogSplitTypeHour {
 		f.splitFileHour(warnFile)
 		return
@@ -216,6 +215,9 @@ func (f *FileLogger) checkSplitFile(warnFile bool) {
 func (f *FileLogger) writeLogBackground() {
 	for {
 		select {
+		case <-time.After(time.Second):
+			f.checkSplitFile(false)
+			f.checkSplitFile(true)
 		case logData := <-f.logDataChan:
 			var file *os.File = f.file
 			if logData.WarnAndFatal {
@@ -224,8 +226,24 @@ func (f *FileLogger) writeLogBackground() {
 			f.checkSplitFile(logData.WarnAndFatal)
 			fmt.Fprintf(file, "%s %s (%s:%s:%d) %s\n", logData.TimeStr,
 				logData.LevelStr, logData.Filename, logData.FuncName, logData.LineNo, logData.Message)
-		case <-f.closeChan:
-			return
+
+		// 如果没有日志数据，再检查关闭信号
+		default:
+			select {
+			case <-f.closeChan:
+				return
+			case <-time.After(time.Second):
+				f.checkSplitFile(false)
+				f.checkSplitFile(true)
+			case logData := <-f.logDataChan:
+				var file *os.File = f.file
+				if logData.WarnAndFatal {
+					file = f.warnFile
+				}
+				f.checkSplitFile(logData.WarnAndFatal)
+				fmt.Fprintf(file, "%s %s (%s:%s:%d) %s\n", logData.TimeStr,
+					logData.LevelStr, logData.Filename, logData.FuncName, logData.LineNo, logData.Message)
+			}
 		}
 	}
 }
