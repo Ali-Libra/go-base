@@ -65,6 +65,7 @@ func (s *WsServer) Run(port string, path string) {
 }
 
 func (s *WsServer) OnLoop() {
+	//主线程循环，需要主动调用此函数，不然无法接收到消息
 	for {
 		select {
 		case conn := <-s.connChan:
@@ -72,13 +73,15 @@ func (s *WsServer) OnLoop() {
 				s.onConnect(conn) // 调用连接建立成功的回调函数
 			}
 		case msg := <-s.recvChan: // 从接收通道读取数据
-			if s.onMessage != nil {
+			if s.onMessage != nil &&
+				!msg.conn.IsClosed() {
 				s.onMessage(msg.conn, msg.Data) // 调用接收消息的回调函数
 			}
 			for {
 				select {
 				case msg = <-s.recvChan: // 继续读取接收通道中的数据
-					if s.onMessage != nil {
+					if s.onMessage != nil &&
+						!msg.conn.IsClosed() {
 						s.onMessage(msg.conn, msg.Data) // 调用接收消息的回调函数
 					}
 				default:
@@ -169,13 +172,19 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 
 	s.connChan <- wsConn
 	for {
+		//消息协程只读，最多读到脏数据，不会有线程错误
+		if wsConn.IsClosed() {
+			return
+		}
 		msgType, msg, err := conn.ReadMessage()
 		if err != nil {
 			if websocket.IsCloseError(err,
 				websocket.CloseNoStatusReceived,
 				websocket.CloseNormalClosure,
 				websocket.CloseGoingAway) {
-				logger.Info("客户端断开: %v", remoteAddr)
+				logger.Info("客户端断开: %s", remoteAddr)
+			} else if strings.Contains(err.Error(), "use of closed network connection") {
+				logger.Info("连接已关闭 %s", remoteAddr)
 			} else {
 				logger.Error("读取消息失败: %v", err)
 			}
