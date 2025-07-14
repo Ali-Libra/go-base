@@ -164,12 +164,6 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 		sendChan: s.sendChan,
 	}
 
-	token := r.Header.Get("Authorization")
-	if token != "" {
-		token = strings.TrimPrefix(token, "Bearer ")
-		wsConn.Token = token
-	}
-
 	s.connChan <- wsConn
 	for {
 		//消息协程只读，最多读到脏数据，不会有线程错误
