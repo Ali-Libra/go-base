@@ -21,9 +21,20 @@ func Init() bool {
 }
 
 func GetEnv(key string) string {
-	return envMap[key]
+	if val, ok := envMap[key]; ok {
+		return val
+	}
+	return ""
 }
 
+func IsDev() bool {
+	if val, ok := envMap["RUN_MODE"]; ok {
+		if val == "dev" {
+			return true
+		}
+	}
+	return false
+}
 func GetEnvSlice[T string | int](key string) []T {
 	raw := envMap[key]
 	if raw == "" {

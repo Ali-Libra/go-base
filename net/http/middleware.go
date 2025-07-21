@@ -20,7 +20,7 @@ func Chain(f HandlerFunc, middlewares ...Middleware) http.Handler {
 		req := &HttpRequest{Request: r}
 
 		defer func() {
-			if err := recover(); err != nil {
+			if err := recover(); err != nil && !rsp.success {
 				w.WriteHeader(http.StatusInternalServerError)
 				w.Write([]byte(fmt.Sprintf("%v", err)))
 			}
