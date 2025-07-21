@@ -2,9 +2,9 @@ package db
 
 import (
 	"context"
-	"go-base/logger"
 	"sync"
 
+	"github.com/Ali-Libra/go-base/logger"
 	"github.com/redis/go-redis/v9"
 )
 

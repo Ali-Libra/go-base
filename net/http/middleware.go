@@ -2,10 +2,11 @@ package http
 
 import (
 	"fmt"
-	"go-base/logger"
 	"net/http"
 	"sync/atomic"
 	"time"
+
+	"github.com/Ali-Libra/go-base/logger"
 )
 
 type Middleware func(HandlerFunc) HandlerFunc
