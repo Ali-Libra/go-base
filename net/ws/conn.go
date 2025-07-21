@@ -2,8 +2,8 @@ package ws
 
 import (
 	"encoding/json"
-	"go-base/logger"
 
+	"github.com/Ali-Libra/go-base/logger"
 	"github.com/gorilla/websocket"
 )
 

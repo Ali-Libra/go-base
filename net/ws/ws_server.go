@@ -2,12 +2,12 @@ package ws
 
 import (
 	"context"
-	"go-base/logger"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/Ali-Libra/go-base/logger"
 	"github.com/gorilla/websocket"
 )
 
