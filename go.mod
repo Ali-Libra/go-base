@@ -1,4 +1,4 @@
-module go-base
+module github.com/Ali-Libra/go-base
 
 go 1.24.0
 
