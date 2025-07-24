@@ -122,20 +122,3 @@ func FindAvailablePort(startPort int, endPort int) int {
 	}
 	return 0
 }
-
-func SaveImage(data []byte, filename string) error {
-	// 创建并写入文件
-	err := os.WriteFile(filename, data, 0644)
-	if err != nil {
-		return fmt.Errorf("保存图片失败: %w", err)
-	}
-	return nil
-}
-
-func ReadImage(filename string) ([]byte, error) {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-	return data, nil
-}
