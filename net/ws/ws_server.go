@@ -141,7 +141,7 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 	var connId uint64
 	remoteAddr := conn.RemoteAddr().String()
 	defer func() {
-		logger.Info("连接已断开: %s", remoteAddr)
+		logger.Info("client have closed: %s", remoteAddr)
 		conn.Close()
 		s.rwLock.Lock()
 		delete(s.conns, connId)
@@ -155,7 +155,7 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 	s.conns[connId] = conn
 	s.rwLock.Unlock()
 
-	logger.Info("客户端已连接: %d:%s", connId, remoteAddr)
+	logger.Info("client connected: %d:%s", connId, remoteAddr)
 
 	wsConn := &WsConn{
 		ConnId:   connId,
@@ -176,11 +176,11 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 				websocket.CloseNoStatusReceived,
 				websocket.CloseNormalClosure,
 				websocket.CloseGoingAway) {
-				logger.Info("客户端断开: %s", remoteAddr)
+				logger.Info("client closed: %s", remoteAddr)
 			} else if strings.Contains(err.Error(), "use of closed network connection") {
-				logger.Info("连接已关闭 %s", remoteAddr)
+				logger.Info("client have closed %s", remoteAddr)
 			} else {
-				logger.Error("读取消息失败: %v", err)
+				logger.Error("client received fail: %v", err)
 			}
 			return
 		}
