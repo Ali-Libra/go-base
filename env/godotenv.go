@@ -17,6 +17,13 @@ func Init() bool {
 		fmt.Printf("Error loading .env file")
 		return false
 	}
+	if IsDev() {
+		envMap, err = godotenv.Read(".env.dev")
+		if err != nil {
+			fmt.Printf("Error loading .env file")
+			return false
+		}
+	}
 	return true
 }
 
