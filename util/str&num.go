@@ -29,6 +29,24 @@ func ToString[T Number](val T) string {
 	}
 }
 
+func StringToNum[T Number](s string) (T, error) {
+	var zero T // 用来返回零值
+	switch any(zero).(type) {
+	case float32, float64:
+		v, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return zero, err
+		}
+		return T(v), nil
+	default: // int/uint
+		v, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			return zero, err
+		}
+		return T(v), nil
+	}
+}
+
 type Ordered interface {
 	~int | ~int8 | ~int16 | ~int32 | ~int64 |
 		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 |
