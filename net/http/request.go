@@ -3,12 +3,15 @@ package http
 import (
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 )
 
 type HttpRequest struct {
 	*http.Request
-	contexts map[string]interface{}
+	contexts    map[string]interface{}
+	queryValues url.Values
+	queryParsed bool
 }
 
 func (req *HttpRequest) ReadBody() ([]byte, error) {
@@ -68,4 +71,45 @@ func (req *HttpRequest) GetContextUint32(key string) uint32 {
 		}
 	}
 	return 0
+}
+
+func (req *HttpRequest) getQueryValues() url.Values {
+	if req.queryParsed {
+		return req.queryValues
+	}
+	req.queryParsed = true
+	if req.URL == nil {
+		req.queryValues = url.Values{}
+		return req.queryValues
+	}
+	req.queryValues = req.URL.Query()
+	return req.queryValues
+}
+
+func (req *HttpRequest) GetQuery(key string) string {
+	return req.getQueryValues().Get(key)
+}
+
+func (req *HttpRequest) GetQueryUint64(key string) uint64 {
+	val := req.GetQuery(key)
+	if val == "" {
+		return 0
+	}
+	parsed, err := strconv.ParseUint(val, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return parsed
+}
+
+func (req *HttpRequest) GetQueryUint32(key string) uint32 {
+	val := req.GetQuery(key)
+	if val == "" {
+		return 0
+	}
+	parsed, err := strconv.ParseUint(val, 10, 32)
+	if err != nil {
+		return 0
+	}
+	return uint32(parsed)
 }
