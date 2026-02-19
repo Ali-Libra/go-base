@@ -65,3 +65,20 @@ func (p *RedisMgr) Close() {
 func (p *RedisMgr) GetClient() *redis.Client {
 	return p.client
 }
+
+func CreateRedisClient(addr string) *redis.Client {
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     addr, // Redis 地址
+		Password: "",   // 无密码则留空
+		DB:       0,    // 使用默认 DB
+	})
+
+	ctx := context.Background()
+	_, err := rdb.Ping(ctx).Result()
+	if err != nil {
+		logger.Error("❌ Redis 连接失败: %v", err)
+		return nil
+	}
+
+	return rdb
+}

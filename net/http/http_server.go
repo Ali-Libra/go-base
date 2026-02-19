@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"html/template"
 	"net"
 	"net/http"
 	"reflect"
@@ -19,6 +20,7 @@ type HttpServer struct {
 	timeout     time.Duration
 	idleTimeout time.Duration
 	middlewares []Middleware
+	templates   *template.Template
 }
 
 func NewHttpServer() *HttpServer {
@@ -30,7 +32,7 @@ func NewHttpServer() *HttpServer {
 	}
 }
 
-func (s *HttpServer) Run(port string) {
+func (s *HttpServer) Run(port string) error {
 	s.server = &http.Server{
 		Addr:         port,
 		Handler:      s.mux,
@@ -41,7 +43,7 @@ func (s *HttpServer) Run(port string) {
 			logger.Info("conn %v state: %v", conn.RemoteAddr(), state)
 		},
 	}
-	s.server.ListenAndServe()
+	return s.server.ListenAndServe()
 }
 
 func (s *HttpServer) Close() {
@@ -81,4 +83,25 @@ func (s *HttpServer) Handle(pattern string, handler HandlerFunc, middleHandlers 
 	}
 
 	s.mux.Handle(pattern, Chain(handler, mws...))
+}
+
+// LoadHTMLGlob 加载HTML模板
+func (s *HttpServer) LoadHTMLGlob(pattern string) error {
+	tmpl, err := template.ParseGlob(pattern)
+	if err != nil {
+		return err
+	}
+	s.templates = tmpl
+	return nil
+}
+
+// RenderHTML 渲染HTML模板并返回给客户端
+func (s *HttpServer) RenderHTML(w http.ResponseWriter, statusCode int, templateName string, data interface{}) error {
+	if s.templates == nil {
+		http.Error(w, "Templates not loaded", http.StatusInternalServerError)
+		return nil
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(statusCode)
+	return s.templates.ExecuteTemplate(w, templateName, data)
 }
