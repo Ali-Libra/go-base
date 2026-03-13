@@ -32,7 +32,7 @@ func (ws *WsConn) SendData(data []byte) {
 	if ws.IsClosed() {
 		return
 	}
-	ws.sendChan <- &SendMessage{ConnId: ws.ConnId, Data: data}
+	ws.sendChan <- &SendMessage{ConnId: ws.ConnId, MsgType: websocket.BinaryMessage, Data: data}
 }
 
 func (ws *WsConn) SendJson(data interface{}) {
