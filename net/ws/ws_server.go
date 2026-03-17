@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"net/http"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -54,7 +55,7 @@ func NewWsServer() *WsServer {
 }
 
 func (s *WsServer) Run(port string, path string) {
-	go s.handleWrite()
+	// go s.handleWrite()
 
 	s.server = &http.Server{
 		Addr:    port,
@@ -62,9 +63,10 @@ func (s *WsServer) Run(port string, path string) {
 	}
 	s.mux.HandleFunc("/"+path, s.wsHandler)
 	go s.server.ListenAndServe()
+	go s.loop()
 }
 
-func (s *WsServer) OnLoop() {
+func (s *WsServer) loop() {
 	//主线程循环，需要主动调用此函数，不然无法接收到消息
 	for {
 		select {
@@ -88,12 +90,40 @@ func (s *WsServer) OnLoop() {
 					return
 				}
 			}
+		case msg := <-s.sendChan:
+			conn, ok := s.conns[msg.ConnId]
+			if !ok {
+				logger.Error("connect %d have  closed", msg.ConnId)
+				continue
+			}
+			err := conn.WriteMessage(msg.MsgType, msg.Data)
+			if err != nil {
+				logger.Error("connect %d have  write error", msg.ConnId)
+				continue
+			}
+			for {
+				select {
+				case msg = <-s.sendChan: // 继续读取接收通道中的数据
+					conn, ok := s.conns[msg.ConnId]
+					if !ok {
+						logger.Error("connect %d have  closed", msg.ConnId)
+						continue
+					}
+					err := conn.WriteMessage(msg.MsgType, msg.Data)
+					if err != nil {
+						logger.Error("connect %d have  write error", msg.ConnId)
+						continue
+					}
+				default:
+					return
+				}
+			}
 		case conn := <-s.closeChan: // 监听关闭信号
 			if s.onClose != nil {
 				s.onClose(conn) // 调用连接关闭的回调函数
 			}
 		default:
-			return
+			runtime.Gosched()
 		}
 	}
 }
@@ -118,6 +148,14 @@ func (c *WsServer) SetOnConnect(callback func(conn *WsConn)) {
 
 func (c *WsServer) SetOnMessage(callback func(conn *WsConn, msg []byte)) {
 	c.onMessage = callback
+}
+
+func (c *WsServer) SendData(connID uint64, msgType int, data []byte) {
+	c.sendChan <- &SendMessage{
+		ConnId:  connID,
+		MsgType: msgType,
+		Data:    data,
+	}
 }
 
 func (c *WsServer) SetOnClose(callback func(conn uint64)) {
@@ -158,10 +196,9 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 	logger.Info("client connected: %d:%s", connId, remoteAddr)
 
 	wsConn := &WsConn{
-		ConnId:   connId,
-		conn:     conn,
-		Addr:     remoteAddr,
-		sendChan: s.sendChan,
+		ConnId: connId,
+		conn:   conn,
+		Addr:   remoteAddr,
 	}
 
 	s.connChan <- wsConn
@@ -193,6 +230,7 @@ func (s *WsServer) wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// 读写分多协程的时候用
 func (s *WsServer) handleWrite() {
 	for msg := range s.sendChan { // 从发送通道读取数据
 		s.rwLock.RLock()
@@ -209,4 +247,24 @@ func (s *WsServer) handleWrite() {
 			continue
 		}
 	}
+}
+
+type WsConn struct {
+	ConnId uint64
+	conn   *websocket.Conn
+	Addr   string
+	Token  string
+	close  bool
+}
+
+func (ws *WsConn) Close() {
+	logger.Info("主动关闭连接: %d:%s", ws.ConnId, ws.Addr)
+	if ws.conn != nil {
+		ws.close = true
+		ws.conn.Close()
+	}
+}
+
+func (ws *WsConn) IsClosed() bool {
+	return ws.close
 }
