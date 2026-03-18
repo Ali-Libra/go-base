@@ -15,14 +15,23 @@ func CreatePostgressClient(addr string, useSSH bool) *pgxpool.Pool {
 	if addr != "" {
 		postgre_addr = addr
 	} else {
-		postgre_addr = fmt.Sprintf(
-			"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-			env.GetEnv("DB_HOST"),
-			env.GetEnv("DB_PORT"),
-			env.GetEnv("DB_USER"),
-			env.GetEnv("DB_PASSWORD"),
-			env.GetEnv("DB_NAME"),
-		)
+		if env.GetEnv("DB_USER") == "" {
+			postgre_addr = fmt.Sprintf(
+				"host=%s port=%s dbname=%s sslmode=disable",
+				env.GetEnv("DB_HOST"),
+				env.GetEnv("DB_PORT"),
+				env.GetEnv("DB_NAME"),
+			)
+		} else {
+			postgre_addr = fmt.Sprintf(
+				"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+				env.GetEnv("DB_HOST"),
+				env.GetEnv("DB_PORT"),
+				env.GetEnv("DB_USER"),
+				env.GetEnv("DB_PASSWORD"),
+				env.GetEnv("DB_NAME"),
+			)
+		}
 	}
 	ctx := context.Background()
 	config, err := pgxpool.ParseConfig(postgre_addr)
